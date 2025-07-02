@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Servo Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #121212;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .card {
+      background: #1f1f1f;
+      border-radius: 20px;
+      padding: 20px;
+      margin: 10px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 0 20px #000;
+    }
+    .slider {
+      width: 100%;
+    }
+    .angle-value {
+      font-size: 2rem;
+      margin: 10px 0;
+      text-align: center;
+    }
+    .status {
+      text-align: center;
+      padding: 8px;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+    .connected {
+      background-color: #2e7d32;
+    }
+    .disconnected {
+      background-color: #b71c1c;
+    }
+    @media (max-width: 600px) {
+      h1 { font-size: 1.5rem; }
+      .angle-value { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Servo Control Panel</h1>
+
+  <div class="card">
+    <h3>🎯 Servo Position</h3>
+    <div class="angle-value" id="current-angle">-- °</div>
+  </div>
+
+  <div class="card">
+    <h3>🎛️ Control Servo</h3>
+    <input type="range" min="0" max="180" value="90" class="slider" id="servoSlider">
+    <p style="text-align:center;">Angle: <span id="sliderValue">90</span>°</p>
+  </div>
+
+  <div class="card">
+    <h3>📡 MQTT Status</h3>
+    <div id="mqttStatus" class="status disconnected">Disconnected</div>
+  </div>
+
+  <script>
+    const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+
+    const angleDisplay = document.getElementById("current-angle");
+    const slider = document.getElementById("servoSlider");
+    const sliderVal = document.getElementById("sliderValue");
+    const mqttStatus = document.getElementById("mqttStatus");
+
+    client.on("connect", () => {
+      mqttStatus.textContent = "Connected";
+      mqttStatus.classList.remove("disconnected");
+      mqttStatus.classList.add("connected");
+      client.subscribe("afkar/servo/angle");
+      client.subscribe("afkar/servo/position");
+    });
+
+    client.on("message", (topic, message) => {
+      if (topic === "afkar/servo/position") {
+        angleDisplay.textContent = `${message.toString()} °`;
+      }
+    });
+
+    client.on("close", () => {
+      mqttStatus.textContent = "Disconnected";
+      mqttStatus.classList.remove("connected");
+      mqttStatus.classList.add("disconnected");
+    });
+
+    slider.addEventListener("input", () => {
+      const angle = slider.value;
+      sliderVal.textContent = angle;
+      client.publish("afkar/servo/angle", angle);
+    });
+  </script>
+</body>
+</html>
+
