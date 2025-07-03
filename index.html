@@ -18,7 +18,6 @@
     }
     h1 {
       margin-bottom: 20px;
-      text-align: center;
     }
     .card {
       background: #1f1f1f;
@@ -29,13 +28,13 @@
       max-width: 500px;
       box-shadow: 0 0 20px #000;
     }
-    .slider {
-      width: 100%;
-    }
     .angle-value {
       font-size: 2rem;
-      margin: 10px 0;
       text-align: center;
+      margin: 10px 0;
+    }
+    .slider {
+      width: 100%;
     }
     .status {
       text-align: center;
@@ -49,26 +48,57 @@
     .disconnected {
       background-color: #b71c1c;
     }
-    @media (max-width: 600px) {
-      h1 { font-size: 1.5rem; }
-      .angle-value { font-size: 1.5rem; }
+    .mode-btns {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 10px;
+    }
+    .btn {
+      background: #333;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .btn.active {
+      background: #1976d2;
     }
   </style>
 </head>
 <body>
   <h1>Servo Control Panel</h1>
 
+  <!-- Servo Position Display -->
   <div class="card">
     <h3>🎯 Servo Position</h3>
     <div class="angle-value" id="current-angle">-- °</div>
   </div>
 
+  <!-- Face Tracking Angle Display -->
   <div class="card">
-    <h3>🎛️ Control Servo</h3>
+    <h3>🧠 Face Tracking Angle</h3>
+    <div class="angle-value" id="facetracking-angle">-- °</div>
+  </div>
+
+  <!-- Servo Control via Slider -->
+  <div class="card">
+    <h3>🎛️ Manual Control</h3>
     <input type="range" min="0" max="180" value="90" class="slider" id="servoSlider">
     <p style="text-align:center;">Angle: <span id="sliderValue">90</span>°</p>
   </div>
 
+  <!-- Mode Selection Buttons -->
+  <div class="card">
+    <h3>🕹️ Control Mode</h3>
+    <div class="mode-btns">
+      <button id="btnManual" class="btn active">Manual</button>
+      <button id="btnFace" class="btn">Face Tracking</button>
+    </div>
+  </div>
+
+  <!-- MQTT Status Display -->
   <div class="card">
     <h3>📡 MQTT Status</h3>
     <div id="mqttStatus" class="status disconnected">Disconnected</div>
@@ -78,21 +108,34 @@
     const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
     const angleDisplay = document.getElementById("current-angle");
+    const faceAngleDisplay = document.getElementById("facetracking-angle");
     const slider = document.getElementById("servoSlider");
     const sliderVal = document.getElementById("sliderValue");
     const mqttStatus = document.getElementById("mqttStatus");
 
+    const btnManual = document.getElementById("btnManual");
+    const btnFace = document.getElementById("btnFace");
+
+    let mode = "manual"; // Default mode
+
+    // --- MQTT Setup ---
     client.on("connect", () => {
       mqttStatus.textContent = "Connected";
       mqttStatus.classList.remove("disconnected");
       mqttStatus.classList.add("connected");
-      client.subscribe("afkar/servo/angle");
+
       client.subscribe("afkar/servo/position");
+      client.subscribe("afkar/facetracking/angle");
     });
 
     client.on("message", (topic, message) => {
       if (topic === "afkar/servo/position") {
         angleDisplay.textContent = `${message.toString()} °`;
+      } else if (topic === "afkar/facetracking/angle") {
+        faceAngleDisplay.textContent = `${message.toString()} °`;
+        if (mode === "face") {
+          client.publish("afkar/servo/angle", message.toString());
+        }
       }
     });
 
@@ -102,12 +145,27 @@
       mqttStatus.classList.add("disconnected");
     });
 
+    // --- Mode Switch ---
+    btnManual.addEventListener("click", () => {
+      mode = "manual";
+      btnManual.classList.add("active");
+      btnFace.classList.remove("active");
+    });
+
+    btnFace.addEventListener("click", () => {
+      mode = "face";
+      btnFace.classList.add("active");
+      btnManual.classList.remove("active");
+    });
+
+    // --- Manual Servo Slider ---
     slider.addEventListener("input", () => {
       const angle = slider.value;
       sliderVal.textContent = angle;
-      client.publish("afkar/servo/angle", angle);
+      if (mode === "manual") {
+        client.publish("afkar/servo/angle", angle);
+      }
     });
   </script>
 </body>
 </html>
-
